@@ -2131,6 +2131,27 @@ def understand_question(
 
     try:
 
+        # Deterministically handle averages across all numeric columns.
+        question_text = re.sub(
+            r"\s+", " ", str(question or "").strip().lower()
+        )
+        asks_average_all_numeric = (
+            re.search(r"\b(?:average|avg|mean)\b", question_text)
+            and re.search(r"\b(?:all|every|each)\b", question_text)
+            and re.search(r"\b(?:numeric|numerical|number)\b", question_text)
+            and re.search(r"\b(?:columns?|fields?|variables?)\b", question_text)
+        )
+        if asks_average_all_numeric:
+            return {
+                "intent": "average_all_numeric",
+                "column": None,
+                "group_by": None,
+                "filter_column": None,
+                "filter_value": None,
+                "x_column": None,
+                "y_column": None,
+            }
+
         # ==================================================
         # REJECT INCOMPLETE QUESTIONS BEFORE LLM FALLBACK
         # ==================================================

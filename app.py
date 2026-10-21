@@ -702,6 +702,23 @@ if uploaded_file is not None:
 
         if (
             result.get("success")
+            and result.get("result_type") == "table"
+        ):
+
+            table_df = result.get("value")
+
+            if isinstance(table_df, pd.DataFrame) and not table_df.empty:
+                st.subheader("📋 Average of Numeric Columns")
+                st.dataframe(
+                    table_df,
+                    width="stretch",
+                    hide_index=True,
+                )
+            else:
+                st.info("The analysis completed, but no table was returned.")
+
+        elif (
+            result.get("success")
             and result.get("result_type") == "number"
         ):
 

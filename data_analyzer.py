@@ -376,6 +376,35 @@ def analyze_data(df, request):
 
 
     # =========================================================
+    # AVERAGE OF ALL NUMERIC COLUMNS
+    # =========================================================
+
+    if intent == "average_all_numeric":
+
+        numeric_df = df.select_dtypes(include="number")
+
+        if numeric_df.empty:
+            return {
+                "success": False,
+                "answer": "No numeric columns were found in the dataset.",
+                "result_type": "error",
+            }
+
+        averages = numeric_df.mean().rename("Average").reset_index()
+        averages.columns = ["Column", "Average"]
+        averages["Average"] = averages["Average"].round(2)
+
+        return {
+            "success": True,
+            "answer": (
+                f"Calculated the average for "
+                f"{len(averages)} numeric columns."
+            ),
+            "result_type": "table",
+            "value": averages,
+        }
+
+    # =========================================================
     # 9. AVERAGE
     # =========================================================
 
