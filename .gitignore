@@ -1,0 +1,27 @@
+﻿# Python environments and caches
+.venv/
+.venv_*/
+venv/
+__pycache__/
+*.py[cod]
+
+# Secrets and local configuration
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Backups
+backup_step*/
+pre_v3_backup*/
+test_backup*/
+
+# Generated test output
+test_report.csv
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Local validation datasets (not cleared for redistribution)
+HR-Employee-Attrition.csv
+customer_shopping_behavior.csv
