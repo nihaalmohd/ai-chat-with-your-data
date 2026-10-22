@@ -14,6 +14,8 @@ from visualization_engine import (
     create_intelligent_chart,
     create_dataset_visualization,
 )
+from export_utils import dataframe_to_excel_bytes, exportable_result_dataframe
+from followup_handler import is_followup_question, explain_previous_result
 
 
 # ============================================================
@@ -128,34 +130,6 @@ def format_grouped_dataframe(result_df, percentage_mode=False):
         )
 
     return display_df
-
-
-def dataframe_to_excel_bytes(dataframe, sheet_name="Results"):
-    """Serialize a DataFrame to an in-memory Excel workbook."""
-    output = BytesIO()
-    safe_sheet_name = str(sheet_name)[:31] or "Results"
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        dataframe.to_excel(writer, index=False, sheet_name=safe_sheet_name)
-    return output.getvalue()
-
-
-def exportable_result_dataframe(result):
-    """Return a safe tabular representation of a successful analysis result."""
-    if not isinstance(result, dict) or not result.get("success"):
-        return None
-
-    value = result.get("value")
-    if isinstance(value, pd.DataFrame):
-        return value.copy()
-    if isinstance(value, dict):
-        return pd.DataFrame(list(value.items()), columns=["Category", "Value"])
-    if isinstance(value, (list, tuple)):
-        return pd.DataFrame(value)
-    if value is not None and result.get("result_type") in {
-        "number", "percentage"
-    }:
-        return pd.DataFrame({"Result": [value]})
-    return None
 
 
 @st.cache_data(ttl=1800, max_entries=4, show_spinner=False)
@@ -732,64 +706,70 @@ if uploaded_file is not None:
         try:
 
             # ------------------------------------------------
-            # ROUTE QUESTION
+            # HANDLE CONTEXTUAL FOLLOW-UP OR NEW ANALYSIS
             # ------------------------------------------------
 
-            route = route_question(question)
-
-            # ------------------------------------------------
-            # UNDERSTAND QUESTION
-            # ------------------------------------------------
-
-            if route["route"] == "direct":
-
-                request = {
-                    "intent": route["intent"],
-                }
-
-            else:
-
-                request = understand_question(
-                    question,
-                    df,
-                )
-
-            # ------------------------------------------------
-            # ANALYZE DATA
-            # ------------------------------------------------
-
-            result = analyze_data(
-                df,
-                request,
+            previous_result = st.session_state.get("last_analysis_result")
+            is_contextual_followup = (
+                is_followup_question(question)
+                and isinstance(previous_result, dict)
+                and previous_result.get("success")
             )
 
-            # ------------------------------------------------
-            # GENERATE ANSWER
-            # ------------------------------------------------
-
-            if result.get("success"):
-
-                answer = result.get(
-                    "answer",
-                    "Analysis completed.",
-                )
-
+            if is_contextual_followup:
+                result = {
+                    "success": True,
+                    "result_type": "followup",
+                    "answer": explain_previous_result(
+                        question,
+                        st.session_state.get("last_analysis_question"),
+                        previous_result,
+                        df,
+                    ),
+                }
+                answer = result["answer"]
             else:
+                # ------------------------------------------------
+                # ROUTE QUESTION
+                # ------------------------------------------------
 
-                # When the interpreter deliberately requests clarification,
-                # show that specific guidance instead of the analyzer's
-                # generic "could not understand" fallback.
-                semantic_warning = request.get("semantic_warning")
-                if (
-                    request.get("intent") == "unknown"
-                    and semantic_warning
-                ):
-                    answer = semantic_warning
+                route = route_question(question)
+
+                # ------------------------------------------------
+                # UNDERSTAND QUESTION
+                # ------------------------------------------------
+
+                if route["route"] == "direct":
+                    request = {"intent": route["intent"]}
                 else:
-                    answer = result.get(
-                        "answer",
-                        "Unable to analyze the question.",
-                    )
+                    request = understand_question(question, df)
+
+                # ------------------------------------------------
+                # ANALYZE DATA
+                # ------------------------------------------------
+
+                result = analyze_data(df, request)
+
+                # ------------------------------------------------
+                # GENERATE ANSWER
+                # ------------------------------------------------
+
+                if result.get("success"):
+                    answer = result.get("answer", "Analysis completed.")
+                else:
+                    # Preserve intentional clarification guidance.
+                    semantic_warning = request.get("semantic_warning")
+                    if request.get("intent") == "unknown" and semantic_warning:
+                        answer = semantic_warning
+                    else:
+                        answer = result.get(
+                            "answer",
+                            "Unable to analyze the question.",
+                        )
+
+                if result.get("success"):
+                    st.session_state.last_analysis_result = result
+                    st.session_state.last_analysis_question = question
 
         except Exception as e:
 
