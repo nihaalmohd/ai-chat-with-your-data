@@ -10,6 +10,9 @@ The project is designed to support varied datasets and column names instead of r
 - Download the uploaded dataset or successful analysis results as CSV or Excel.
 - Cache file parsing briefly to reduce repeated work during chat interactions.
 - Display schema-aware example questions to help users explore a new dataset.
+- Ask contextual follow-up questions such as “What does this result mean?” to explain the last successful computed result without claiming unsupported causation.
+- Use tested CSV/Excel export helpers for dataset and successful analysis-result downloads.
+- Run a reproducible synthetic-data benchmark to measure parsing, profiling, grouping, and average calculations.
 - Explore dataset dimensions, column types, missing values, duplicates, and inferred column roles.
 - Ask natural-language questions using local Ollama or hosted Groq inference.
 - Perform supported calculations, including counts, filtered counts, averages, minimums, maximums, grouped counts, grouped averages, sums, distributions, and relationships.
@@ -72,6 +75,15 @@ Run the regression test suite:
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+Run a performance benchmark (timings are reported, not used as brittle pass/fail thresholds):
+
+```powershell
+.\\.venv_regular\\Scripts\\python.exe scripts\\benchmark_dataset.py --rows 200000
+```
+
+The benchmark reports CSV parsing, profiling, grouped counts, average calculation, serialized file size, and DataFrame memory usage. Try `--rows 1000000` for a larger local run if your machine has enough memory.
+
 
 Run the router tests:
 
