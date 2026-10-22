@@ -158,6 +158,21 @@ def exportable_result_dataframe(result):
     return None
 
 
+@st.cache_data(ttl=1800, max_entries=4, show_spinner=False)
+def get_excel_sheet_names(file_bytes):
+    """Read worksheet names once per uploaded workbook during a short cache window."""
+    with pd.ExcelFile(BytesIO(file_bytes)) as workbook:
+        return workbook.sheet_names
+
+
+@st.cache_data(ttl=1800, max_entries=4, show_spinner=False)
+def read_uploaded_dataset(file_bytes, filename, sheet_name=None):
+    """Cache file parsing so each chat rerun does not re-read the full upload."""
+    if str(filename).lower().endswith(".csv"):
+        return pd.read_csv(BytesIO(file_bytes))
+    return pd.read_excel(BytesIO(file_bytes), sheet_name=sheet_name)
+
+
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
@@ -202,10 +217,15 @@ if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
 
         if uploaded_file.name.lower().endswith(".csv"):
-            df = pd.read_csv(BytesIO(file_bytes))
+            df = read_uploaded_dataset(
+                file_bytes,
+                uploaded_file.name,
+            )
         else:
-            workbook = pd.ExcelFile(BytesIO(file_bytes))
-            sheet_names = workbook.sheet_names
+            sheet_names = get_excel_sheet_names(file_bytes)
+
+            if not sheet_names:
+                raise ValueError("The Excel workbook does not contain any worksheets.")
 
             if len(sheet_names) > 1:
                 selected_sheet = st.selectbox(
@@ -217,9 +237,10 @@ if uploaded_file is not None:
             else:
                 selected_sheet = sheet_names[0]
 
-            df = pd.read_excel(
-                BytesIO(file_bytes),
-                sheet_name=selected_sheet,
+            df = read_uploaded_dataset(
+                file_bytes,
+                uploaded_file.name,
+                selected_sheet,
             )
 
     except Exception as e:
