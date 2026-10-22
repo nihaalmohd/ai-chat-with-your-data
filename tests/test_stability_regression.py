@@ -41,8 +41,18 @@ from question_router import route_question
 class PlainCountRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.hr = pd.read_csv(ROOT / "HR-Employee-Attrition.csv")
-        cls.customer = pd.read_csv(ROOT / "customer_shopping_behavior.csv")
+        required = [
+            ROOT / "HR-Employee-Attrition.csv",
+            ROOT / "customer_shopping_behavior.csv",
+        ]
+        missing = [path.name for path in required if not path.is_file()]
+        if missing:
+            raise unittest.SkipTest(
+                "Optional local validation dataset(s) not present: "
+                + ", ".join(missing)
+            )
+        cls.hr = pd.read_csv(required[0])
+        cls.customer = pd.read_csv(required[1])
 
     def test_previously_failing_total_count_questions(self):
         cases = [
@@ -171,10 +181,22 @@ class PlainCountRegressionTests(unittest.TestCase):
 
 class DataAgnosticProfilingTests(unittest.TestCase):
     def test_known_datasets_profile(self):
-        for filename, expected_shape in [
+        cases = [
             ("HR-Employee-Attrition.csv", (1470, 35)),
             ("customer_shopping_behavior.csv", (3900, 18)),
-        ]:
+        ]
+        available_cases = [
+            (filename, shape)
+            for filename, shape in cases
+            if (ROOT / filename).is_file()
+        ]
+        if not available_cases:
+            self.skipTest(
+                "Optional local validation datasets are not present; "
+                "dataset-independent fixtures are tested separately."
+            )
+
+        for filename, expected_shape in available_cases:
             df = pd.read_csv(ROOT / filename)
             profile = profile_dataset(df)
             self.assertEqual((profile["rows"], profile["columns"]), expected_shape)
@@ -198,8 +220,19 @@ class DataAgnosticProfilingTests(unittest.TestCase):
 class DeterministicAnalyzerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.hr = pd.read_csv(ROOT / "HR-Employee-Attrition.csv")
-        cls.customer = pd.read_csv(ROOT / "customer_shopping_behavior.csv")
+        hr_path = ROOT / "HR-Employee-Attrition.csv"
+        customer_path = ROOT / "customer_shopping_behavior.csv"
+        missing = [
+            path.name for path in (hr_path, customer_path)
+            if not path.is_file()
+        ]
+        if missing:
+            raise unittest.SkipTest(
+                "Optional local validation dataset(s) not present: "
+                + ", ".join(missing)
+            )
+        cls.hr = pd.read_csv(hr_path)
+        cls.customer = pd.read_csv(customer_path)
 
     def test_hr_core_results(self):
         cases = [

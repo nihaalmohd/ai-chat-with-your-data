@@ -6,7 +6,10 @@ The project is designed to support varied datasets and column names instead of r
 
 ## Current Capabilities
 
-- Upload CSV and Excel (`.xlsx`) files.
+- Upload CSV and Excel (`.xlsx`) files, with worksheet selection for multi-sheet workbooks.
+- Download the uploaded dataset or successful analysis results as CSV or Excel.
+- Cache file parsing briefly to reduce repeated work during chat interactions.
+- Display schema-aware example questions to help users explore a new dataset.
 - Explore dataset dimensions, column types, missing values, duplicates, and inferred column roles.
 - Ask natural-language questions using local Ollama or hosted Groq inference.
 - Perform supported calculations, including counts, filtered counts, averages, minimums, maximums, grouped counts, grouped averages, sums, distributions, and relationships.
@@ -52,6 +55,10 @@ Keep Ollama running. In a second PowerShell window, navigate to the project dire
 
 The app should open in your browser. Upload a dataset and try a question supported by the current analysis pipeline.
 
+## Automated Regression Checks
+
+GitHub Actions runs syntax compilation and the offline regression suite on pushes to the stabilization branches and on pull requests to `main`. The core tests use synthetic datasets so they do not depend on private files or an external model. Tests that validate the HR and customer examples are skipped when those optional local datasets are absent.
+
 ## Run Tests
 
 Run the following commands from the project directory:
@@ -72,7 +79,7 @@ Run the router tests:
 .\.venv\Scripts\python.exe test_router.py
 ```
 
-The regression and end-to-end tests may depend on the local validation datasets. Check the relevant test scripts for the expected filenames before running them in a fresh clone.
+The core dataset-agnostic tests run with synthetic fixtures. Some historical HR/customer regression tests are optional and will be skipped when those local validation datasets are not present.
 
 For the AI pipeline tests, make sure the configured inference provider is available. If running with local Ollama, start Ollama and ensure `llama3.2:3b` is installed:
 

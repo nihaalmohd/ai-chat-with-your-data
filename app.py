@@ -1,4 +1,6 @@
 
+from io import BytesIO
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -128,6 +130,49 @@ def format_grouped_dataframe(result_df, percentage_mode=False):
     return display_df
 
 
+def dataframe_to_excel_bytes(dataframe, sheet_name="Results"):
+    """Serialize a DataFrame to an in-memory Excel workbook."""
+    output = BytesIO()
+    safe_sheet_name = str(sheet_name)[:31] or "Results"
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+    return output.getvalue()
+
+
+def exportable_result_dataframe(result):
+    """Return a safe tabular representation of a successful analysis result."""
+    if not isinstance(result, dict) or not result.get("success"):
+        return None
+
+    value = result.get("value")
+    if isinstance(value, pd.DataFrame):
+        return value.copy()
+    if isinstance(value, dict):
+        return pd.DataFrame(list(value.items()), columns=["Category", "Value"])
+    if isinstance(value, (list, tuple)):
+        return pd.DataFrame(value)
+    if value is not None and result.get("result_type") in {
+        "number", "percentage"
+    }:
+        return pd.DataFrame({"Result": [value]})
+    return None
+
+
+@st.cache_data(ttl=1800, max_entries=4, show_spinner=False)
+def get_excel_sheet_names(file_bytes):
+    """Read worksheet names once per uploaded workbook during a short cache window."""
+    with pd.ExcelFile(BytesIO(file_bytes)) as workbook:
+        return workbook.sheet_names
+
+
+@st.cache_data(ttl=1800, max_entries=4, show_spinner=False)
+def read_uploaded_dataset(file_bytes, filename, sheet_name=None):
+    """Cache file parsing so each chat rerun does not re-read the full upload."""
+    if str(filename).lower().endswith(".csv"):
+        return pd.read_csv(BytesIO(file_bytes))
+    return pd.read_excel(BytesIO(file_bytes), sheet_name=sheet_name)
+
+
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
@@ -169,13 +214,34 @@ if uploaded_file is not None:
 
     try:
 
+        file_bytes = uploaded_file.getvalue()
+
         if uploaded_file.name.lower().endswith(".csv"):
-
-            df = pd.read_csv(uploaded_file)
-
+            df = read_uploaded_dataset(
+                file_bytes,
+                uploaded_file.name,
+            )
         else:
+            sheet_names = get_excel_sheet_names(file_bytes)
 
-            df = pd.read_excel(uploaded_file)
+            if not sheet_names:
+                raise ValueError("The Excel workbook does not contain any worksheets.")
+
+            if len(sheet_names) > 1:
+                selected_sheet = st.selectbox(
+                    "Choose an Excel worksheet",
+                    options=sheet_names,
+                    key=f"sheet_selector_{uploaded_file.name}",
+                    help="Select which worksheet to analyze.",
+                )
+            else:
+                selected_sheet = sheet_names[0]
+
+            df = read_uploaded_dataset(
+                file_bytes,
+                uploaded_file.name,
+                selected_sheet,
+            )
 
     except Exception as e:
 
@@ -352,6 +418,46 @@ if uploaded_file is not None:
         st.info(
             "No automatic insights were generated."
         )
+
+    # ========================================================
+    # DATA-AWARE QUESTION SUGGESTIONS
+    # ========================================================
+
+    with st.expander("💬 Suggested questions for this dataset", expanded=False):
+        suggested_questions = [
+            "How many records are there?",
+            "Show the average of every numeric column",
+            "Show missing values by column",
+        ]
+        numeric_columns_for_prompts = profile.get("usable_numeric_columns", profile.get("numeric_columns", []))
+        categorical_columns_for_prompts = profile.get("usable_group_columns", profile.get("categorical_columns", []))
+
+        if numeric_columns_for_prompts:
+            first_numeric = str(numeric_columns_for_prompts[0])
+            suggested_questions.append(
+                f"What is the average of {first_numeric}?"
+            )
+            suggested_questions.append(
+                f"Show the distribution of {first_numeric}"
+            )
+
+        if categorical_columns_for_prompts:
+            first_category = str(categorical_columns_for_prompts[0])
+            suggested_questions.append(
+                f"Show record count by {first_category}"
+            )
+
+        if numeric_columns_for_prompts and categorical_columns_for_prompts:
+            suggested_questions.append(
+                f"Show average {numeric_columns_for_prompts[0]} by {categorical_columns_for_prompts[0]}"
+            )
+
+        st.write(
+            "Copy a question below into the chat. Suggestions use columns "
+            "detected in the uploaded dataset; model support can vary by question."
+        )
+        for suggested_question in dict.fromkeys(suggested_questions):
+            st.code(suggested_question, language=None)
 
     # ========================================================
     # MISSING VALUE ANALYSIS
@@ -536,6 +642,26 @@ if uploaded_file is not None:
             df.head(10),
             use_container_width=True,
         )
+
+        dataset_csv = df.to_csv(index=False).encode("utf-8")
+        dataset_excel = dataframe_to_excel_bytes(df, "Dataset")
+        download_col1, download_col2 = st.columns(2)
+        with download_col1:
+            st.download_button(
+                "Download full dataset (CSV)",
+                data=dataset_csv,
+                file_name="dataset_export.csv",
+                mime="text/csv",
+                key=f"download_dataset_csv_{uploaded_file.name}",
+            )
+        with download_col2:
+            st.download_button(
+                "Download full dataset (Excel)",
+                data=dataset_excel,
+                file_name="dataset_export.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_dataset_xlsx_{uploaded_file.name}",
+            )
 
     # ========================================================
     # COLUMN INFORMATION
@@ -961,6 +1087,34 @@ if uploaded_file is not None:
                 st.info(
                     "No suitable visualization "
                     "could be generated."
+                )
+
+        # ====================================================
+        # EXPORT CURRENT ANALYSIS RESULT
+        # ====================================================
+
+        export_df = exportable_result_dataframe(result)
+        if export_df is not None:
+            st.subheader("⬇️ Export Analysis Result")
+            export_csv = export_df.to_csv(index=False).encode("utf-8")
+            export_xlsx = dataframe_to_excel_bytes(export_df, "Analysis")
+            export_col1, export_col2 = st.columns(2)
+            export_key = len(st.session_state.chat_history)
+            with export_col1:
+                st.download_button(
+                    "Download result (CSV)",
+                    data=export_csv,
+                    file_name="analysis_result.csv",
+                    mime="text/csv",
+                    key=f"download_result_csv_{export_key}",
+                )
+            with export_col2:
+                st.download_button(
+                    "Download result (Excel)",
+                    data=export_xlsx,
+                    file_name="analysis_result.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_result_xlsx_{export_key}",
                 )
 
     # ========================================================
