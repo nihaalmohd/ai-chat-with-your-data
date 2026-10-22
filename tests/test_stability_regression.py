@@ -181,10 +181,22 @@ class PlainCountRegressionTests(unittest.TestCase):
 
 class DataAgnosticProfilingTests(unittest.TestCase):
     def test_known_datasets_profile(self):
-        for filename, expected_shape in [
+        cases = [
             ("HR-Employee-Attrition.csv", (1470, 35)),
             ("customer_shopping_behavior.csv", (3900, 18)),
-        ]:
+        ]
+        available_cases = [
+            (filename, shape)
+            for filename, shape in cases
+            if (ROOT / filename).is_file()
+        ]
+        if not available_cases:
+            self.skipTest(
+                "Optional local validation datasets are not present; "
+                "dataset-independent fixtures are tested separately."
+            )
+
+        for filename, expected_shape in available_cases:
             df = pd.read_csv(ROOT / filename)
             profile = profile_dataset(df)
             self.assertEqual((profile["rows"], profile["columns"]), expected_shape)
