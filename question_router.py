@@ -13,6 +13,20 @@ def route_question(question):
         question
     )
 
+    # Route averages across every numeric column deterministically.
+    # This must run before any LLM-backed interpretation.
+    asks_average_all_numeric = (
+        re.search(r"\b(?:average|avg|mean)\b", question)
+        and re.search(r"\b(?:all|every|each)\b", question)
+        and re.search(r"\b(?:numeric|numerical|number)\b", question)
+        and re.search(r"\b(?:columns?|fields?|variables?)\b", question)
+    )
+    if asks_average_all_numeric:
+        return {
+            "route": "direct",
+            "intent": "average_all_numeric",
+        }
+
     # ========================================================
     # 1. GROUP COUNT
     # ========================================================
