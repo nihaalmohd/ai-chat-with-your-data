@@ -1,4 +1,6 @@
 
+from io import BytesIO
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -128,6 +130,34 @@ def format_grouped_dataframe(result_df, percentage_mode=False):
     return display_df
 
 
+def dataframe_to_excel_bytes(dataframe, sheet_name="Results"):
+    """Serialize a DataFrame to an in-memory Excel workbook."""
+    output = BytesIO()
+    safe_sheet_name = str(sheet_name)[:31] or "Results"
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+    return output.getvalue()
+
+
+def exportable_result_dataframe(result):
+    """Return a safe tabular representation of a successful analysis result."""
+    if not isinstance(result, dict) or not result.get("success"):
+        return None
+
+    value = result.get("value")
+    if isinstance(value, pd.DataFrame):
+        return value.copy()
+    if isinstance(value, dict):
+        return pd.DataFrame(list(value.items()), columns=["Category", "Value"])
+    if isinstance(value, (list, tuple)):
+        return pd.DataFrame(value)
+    if value is not None and result.get("result_type") in {
+        "number", "percentage"
+    }:
+        return pd.DataFrame({"Result": [value]})
+    return None
+
+
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
@@ -169,13 +199,28 @@ if uploaded_file is not None:
 
     try:
 
+        file_bytes = uploaded_file.getvalue()
+
         if uploaded_file.name.lower().endswith(".csv"):
-
-            df = pd.read_csv(uploaded_file)
-
+            df = pd.read_csv(BytesIO(file_bytes))
         else:
+            workbook = pd.ExcelFile(BytesIO(file_bytes))
+            sheet_names = workbook.sheet_names
 
-            df = pd.read_excel(uploaded_file)
+            if len(sheet_names) > 1:
+                selected_sheet = st.selectbox(
+                    "Choose an Excel worksheet",
+                    options=sheet_names,
+                    key=f"sheet_selector_{uploaded_file.name}",
+                    help="Select which worksheet to analyze.",
+                )
+            else:
+                selected_sheet = sheet_names[0]
+
+            df = pd.read_excel(
+                BytesIO(file_bytes),
+                sheet_name=selected_sheet,
+            )
 
     except Exception as e:
 
@@ -536,6 +581,26 @@ if uploaded_file is not None:
             df.head(10),
             use_container_width=True,
         )
+
+        dataset_csv = df.to_csv(index=False).encode("utf-8")
+        dataset_excel = dataframe_to_excel_bytes(df, "Dataset")
+        download_col1, download_col2 = st.columns(2)
+        with download_col1:
+            st.download_button(
+                "Download full dataset (CSV)",
+                data=dataset_csv,
+                file_name="dataset_export.csv",
+                mime="text/csv",
+                key=f"download_dataset_csv_{uploaded_file.name}",
+            )
+        with download_col2:
+            st.download_button(
+                "Download full dataset (Excel)",
+                data=dataset_excel,
+                file_name="dataset_export.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_dataset_xlsx_{uploaded_file.name}",
+            )
 
     # ========================================================
     # COLUMN INFORMATION
@@ -961,6 +1026,34 @@ if uploaded_file is not None:
                 st.info(
                     "No suitable visualization "
                     "could be generated."
+                )
+
+        # ====================================================
+        # EXPORT CURRENT ANALYSIS RESULT
+        # ====================================================
+
+        export_df = exportable_result_dataframe(result)
+        if export_df is not None:
+            st.subheader("⬇️ Export Analysis Result")
+            export_csv = export_df.to_csv(index=False).encode("utf-8")
+            export_xlsx = dataframe_to_excel_bytes(export_df, "Analysis")
+            export_col1, export_col2 = st.columns(2)
+            export_key = len(st.session_state.chat_history)
+            with export_col1:
+                st.download_button(
+                    "Download result (CSV)",
+                    data=export_csv,
+                    file_name="analysis_result.csv",
+                    mime="text/csv",
+                    key=f"download_result_csv_{export_key}",
+                )
+            with export_col2:
+                st.download_button(
+                    "Download result (Excel)",
+                    data=export_xlsx,
+                    file_name="analysis_result.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_result_xlsx_{export_key}",
                 )
 
     # ========================================================
