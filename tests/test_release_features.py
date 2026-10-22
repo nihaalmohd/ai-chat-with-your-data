@@ -68,7 +68,7 @@ class FollowupHandlerTests(unittest.TestCase):
         answer = explain_previous_result("Explain this", "What is the average Sales?", result, self.df)
         self.assertIn("200", answer)
         self.assertIn("What is the average Sales?", answer)
-        self.assertIn("not evidence by itself", answer)
+        self.assertIn("does not by itself establish cause and effect", answer)
 
     def test_table_followup_describes_real_rows_and_truncates_preview(self):
         table = pd.DataFrame({"Region": ["East", "West", "North", "South"], "Value": [2, 1, 3, 4]})
