@@ -223,6 +223,32 @@ class DeterministicAnalyzerTests(unittest.TestCase):
         self.assertTrue(result["success"], result)
         self.assertEqual(result["value"], 2652)
 
+    def test_average_all_numeric_routes_and_calculates_without_llm(self):
+        question = "Show the average of every numeric column in the Orders sheet"
+        route = route_question(question)
+        self.assertEqual(route, {
+            "route": "direct",
+            "intent": "average_all_numeric",
+        })
+
+        df = pd.DataFrame({
+            "Sales": [100, 200, 300],
+            "Quantity": [1, 2, 3],
+            "Profit": [10, 20, 30],
+            "Region": ["East", "West", "East"],
+        })
+        result = analyze_data(df, {"intent": route["intent"]})
+        self.assertTrue(result["success"], result)
+        self.assertEqual(result["result_type"], "table")
+        self.assertEqual(
+            result["value"].to_dict("records"),
+            [
+                {"Column": "Sales", "Average": 200.0},
+                {"Column": "Quantity", "Average": 2.0},
+                {"Column": "Profit", "Average": 20.0},
+            ],
+        )
+
     def test_unique_values_intent(self):
         df = pd.DataFrame({"Color": ["red", "blue", "red", None]})
         result = analyze_data(df, {"intent": "unique_values", "column": "Color"})
