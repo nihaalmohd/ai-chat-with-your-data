@@ -41,8 +41,18 @@ from question_router import route_question
 class PlainCountRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.hr = pd.read_csv(ROOT / "HR-Employee-Attrition.csv")
-        cls.customer = pd.read_csv(ROOT / "customer_shopping_behavior.csv")
+        required = [
+            ROOT / "HR-Employee-Attrition.csv",
+            ROOT / "customer_shopping_behavior.csv",
+        ]
+        missing = [path.name for path in required if not path.is_file()]
+        if missing:
+            raise unittest.SkipTest(
+                "Optional local validation dataset(s) not present: "
+                + ", ".join(missing)
+            )
+        cls.hr = pd.read_csv(required[0])
+        cls.customer = pd.read_csv(required[1])
 
     def test_previously_failing_total_count_questions(self):
         cases = [
