@@ -11,6 +11,8 @@ import pandas as pd
 FOLLOWUP_PHRASES = (
     "what does this mean",
     "what does that mean",
+    "what does this result mean",
+    "what does that result mean",
     "explain this",
     "explain that",
     "explain the result",
@@ -67,7 +69,8 @@ def explain_previous_result(question, previous_question, result, dataframe):
                 f"The previous question was: **{source_question}**. "
                 f"The calculated result was **{value_text}**. "
                 "Interpret it in the units and context of the column or count "
-                "used in that question."
+                "used in that question. This descriptive result does not by "
+                "itself establish cause and effect."
             )
         return explanation
 
