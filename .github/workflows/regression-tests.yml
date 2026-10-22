@@ -30,3 +30,5 @@ jobs:
         run: python -m unittest discover -s tests -p "test_data_agnostic_core.py" -v
       - name: Run complete regression suite
         run: python -m unittest discover -s tests -v
+      - name: Smoke-test synthetic dataset benchmark
+        run: python scripts/benchmark_dataset.py --rows 1000
