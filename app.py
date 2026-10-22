@@ -420,6 +420,46 @@ if uploaded_file is not None:
         )
 
     # ========================================================
+    # DATA-AWARE QUESTION SUGGESTIONS
+    # ========================================================
+
+    with st.expander("💬 Suggested questions for this dataset", expanded=False):
+        suggested_questions = [
+            "How many records are there?",
+            "Show the average of every numeric column",
+            "Show missing values by column",
+        ]
+        numeric_columns_for_prompts = profile.get("usable_numeric_columns", profile.get("numeric_columns", []))
+        categorical_columns_for_prompts = profile.get("usable_group_columns", profile.get("categorical_columns", []))
+
+        if numeric_columns_for_prompts:
+            first_numeric = str(numeric_columns_for_prompts[0])
+            suggested_questions.append(
+                f"What is the average of {first_numeric}?"
+            )
+            suggested_questions.append(
+                f"Show the distribution of {first_numeric}"
+            )
+
+        if categorical_columns_for_prompts:
+            first_category = str(categorical_columns_for_prompts[0])
+            suggested_questions.append(
+                f"Show record count by {first_category}"
+            )
+
+        if numeric_columns_for_prompts and categorical_columns_for_prompts:
+            suggested_questions.append(
+                f"Show average {numeric_columns_for_prompts[0]} by {categorical_columns_for_prompts[0]}"
+            )
+
+        st.write(
+            "Copy a question below into the chat. Suggestions use columns "
+            "detected in the uploaded dataset; model support can vary by question."
+        )
+        for suggested_question in dict.fromkeys(suggested_questions):
+            st.code(suggested_question, language=None)
+
+    # ========================================================
     # MISSING VALUE ANALYSIS
     # ========================================================
 
