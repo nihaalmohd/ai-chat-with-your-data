@@ -220,8 +220,19 @@ class DataAgnosticProfilingTests(unittest.TestCase):
 class DeterministicAnalyzerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.hr = pd.read_csv(ROOT / "HR-Employee-Attrition.csv")
-        cls.customer = pd.read_csv(ROOT / "customer_shopping_behavior.csv")
+        hr_path = ROOT / "HR-Employee-Attrition.csv"
+        customer_path = ROOT / "customer_shopping_behavior.csv"
+        missing = [
+            path.name for path in (hr_path, customer_path)
+            if not path.is_file()
+        ]
+        if missing:
+            raise unittest.SkipTest(
+                "Optional local validation dataset(s) not present: "
+                + ", ".join(missing)
+            )
+        cls.hr = pd.read_csv(hr_path)
+        cls.customer = pd.read_csv(customer_path)
 
     def test_hr_core_results(self):
         cases = [
